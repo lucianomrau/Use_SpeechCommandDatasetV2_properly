@@ -4,16 +4,25 @@ import os, glob, re, tempfile, random, shutil
 
 seed = 42
 random.seed(seed)
+torch.manual_seed(seed)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+if torch.cuda.is_available():
+    torch.cuda.manual_seed_all(seed)
+
 
 
 class AudioDataset(Dataset):
     def __init__(self, audio_path, audio_list,sample_rate,duration_seconds,keywords,device):
-        self.all_keywords = keywords
+        self.all_keywords = sorted(keywords)
         self._device = device
-        self.keywords = [word for word in keywords if word not in ['silence', 'unknown']]
+        self.keywords = sorted([word for word in keywords if word not in ['silence', 'unknown']])
         self.__audio_list = audio_list
         self._audio_path = [f"{str(audio_path)}{audiofile}" for audiofile in audio_list]
         self._num_samples = int(duration_seconds*sample_rate)
+        self._sample_rate = sample_rate
+
+        
 
     #len(audio_wav_file)
     def __len__(self):
@@ -24,18 +33,29 @@ class AudioDataset(Dataset):
         audio_sample_path = self._get_audio_sample_path(index)
         label = self._get_audio_sample_label(index)
         label = self._encode_label(label)
-        signal, _ = torchaudio.load(audio_sample_path)
+        signal, sr = torchaudio.load(audio_sample_path)
+        signal = self._resample_if_necessary(signal, sr)
         signal = signal.to(self._device)
         signal = self._cut_if_necessary(signal)
         signal = self._right_pad_if_necessary(signal)
         return signal, label
+    
+    def _resample_if_necessary(self, signal, sr):
+        if sr!= self._sample_rate:
+            resampler = torchaudio.transforms.Resample(sr, self._sample_rate)
+            signal = resampler(signal)
+        return signal
+    
 
     def _encode_label(self,label):
         return torch.tensor(self.all_keywords.index(label))
-        
+
+
     def _get_audio_sample_path(self,index):
         path = self._audio_path[index]
         return path
+
+    
 
     def _get_audio_sample_label(self,index):
         path = self._audio_path[index]
@@ -63,8 +83,6 @@ class AudioDataset(Dataset):
             last_dim_padding = (0, num_missing_samples)
             signal = torch.nn.functional.pad(signal, last_dim_padding)
         return signal
-        
-
 
 
 
