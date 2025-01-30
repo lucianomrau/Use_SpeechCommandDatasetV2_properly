@@ -52,7 +52,18 @@ TESTSET_PATH = pathlib.Path('dataset_test_set')
 ```
 from speech_command_dataset import SpeechCommandDataset
 
-dataset = SpeechCommandDataset(DATASET_PATH,TESTSET_PATH)
+SAMPLE_RATE = 16000
+KEYWORDS =  list(set(['yes', 'no', 'up', 'down', 'left', 'right', 'on', 'off', 'stop', 'go'] + ['unknown', 'silence']))
+DURATION_SEC = 1.0
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f'Using device: {device}')
+
+dataset = SpeechCommandDataset(audio_path=DATASET_PATH, 
+                                audio_list=TESTSET_PATH,
+                                sample_rate=SAMPLE_RATE,
+                                duration_seconds=DURATION_SEC,
+                                keywords=KEYWORDS,
+                                device=device)
 
 test_set = dataset.get_testset()
 validation_set = dataset.get_validationset()
